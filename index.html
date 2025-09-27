@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arena das Sombras</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <style>
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #1a1a1a;
+            color: #fff;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        #game-container {
+            width: 100%;
+            max-width: 1000px;
+            height: 600px;
+            background: #000;
+            border: 4px solid #444;
+            border-radius: 10px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.7);
+        }
+
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            background-size: cover;
+            background-position: center;
+            transition: opacity 0.5s ease-in-out;
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .screen.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        #start-screen {
+            background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), #100515;
+        }
+
+        .game-title {
+            font-size: 3rem;
+            color: #ff4500;
+            text-shadow: 3px 3px 0 #a02c00, 0 0 20px #ff0000;
+            margin-bottom: 20px;
+        }
+
+        .start-button {
+            font-size: 1.5rem;
+            padding: 15px 30px;
+            background: #ff8c00;
+            border: 2px solid #fff;
+            border-radius: 5px;
+            cursor: pointer;
+            color: #fff;
+            text-shadow: 2px 2px 0 #000;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 10px #ffaf40; }
+            50% { transform: scale(1.05); box-shadow: 0 0 20px #ffaf40; }
+            100% { transform: scale(1); box-shadow: 0 0 10px #ffaf40; }
+        }
+
+        #character-select-screen {
+            background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), #1A1A2E;
+        }
+
+        .character-grid {
+            display: flex;
+            gap: 40px;
+        }
+
+        .character-card {
+            width: 200px;
+            padding: 20px;
+            border: 4px solid #555;
+            border-radius: 10px;
+            background: rgba(0,0,0,0.5);
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .character-card:hover, .character-card.selected {
+            border-color: #ff8c00;
+            transform: translateY(-10px);
+            box-shadow: 0 10px 20px #ff8c0055;
+        }
+        
+        .player-indicator {
+            position: absolute;
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 1rem;
+            padding: 5px 10px;
+            background: #ff4500;
+            border-radius: 5px;
+            color: white;
+        }
+
+        .character-avatar {
+            width: 100px;
+            height: 100px;
+            margin: 0 auto 15px;
+            border-radius: 5px;
+        }
+
+        .character-avatar[data-char-avatar="ryuzen"], .character-avatar[data-char-avatar="draxon"] {
+            border: 2px solid #fff;
+        }
+
+        .character-avatar[data-char-avatar="draxon"] {
+            border-radius: 50%;
+        }
+
+        /* Este elemento agora é o contorno branco */
+        .character-avatar[data-char-avatar="kaela"] {
+            width: 0;
+            height: 0;
+            background-color: transparent !important; /* Override inline style */
+            border-left: 52px solid transparent;
+            border-right: 52px solid transparent;
+            border-bottom: 104px solid #fff; /* A borda branca */
+            border-radius: 0; /* Override base class */
+            position: relative; 
+        }
+
+        /* Este é o triângulo laranja interno */
+        .character-avatar[data-char-avatar="kaela"]::before {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 0;
+            border-left: 50px solid transparent;
+            border-right: 50px solid transparent;
+            border-bottom: 100px solid #ffaa00; /* A cor laranja */
+            /* Posiciona o triângulo laranja dentro do contorno branco */
+            top: 4px;
+            left: -50px;
+        }
+
+
+        #game-screen {
+            background-color: #333;
+        }
+
+        .arena {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            background-size: cover;
+            background-position: center bottom;
+        }
+        
+        #arena-city { background: linear-gradient(to top, #3a3853, #1e1d30); }
+        #arena-temple { background: linear-gradient(to top, #7d5a3f, #4a3525); }
+        #arena-shadow { background: linear-gradient(to top, #482a4d, #1e1221); }
+
+        #game-ui {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 50px;
+            box-sizing: border-box;
+        }
+        
+        .health-bar-container {
+            width: 100%; /* Faz a barra ocupar todo o espaço do container de info */
+            height: 30px;
+            background: rgba(0,0,0,0.5);
+            border: 2px solid #fff;
+            border-radius: 5px;
+            padding: 3px;
+        }
+        
+        .health-bar {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #ff0000, #ffff00);
+            border-radius: 2px;
+            transition: width 0.2s linear;
+        }
+
+        #p2-health-bar-container { direction: rtl; }
+
+        #timer {
+            font-size: 2.5rem;
+            width: 80px;
+            height: 80px;
+            background: rgba(0,0,0,0.7);
+            border: 3px solid #fff;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #ffc700;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        .player {
+            position: absolute;
+            bottom: 0;
+            width: 60px;
+            height: 120px;
+            transition: transform 0.1s;
+        }
+        
+        .sprite {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+
+        /* Formas dos sprites em jogo */
+        .kaela-sprite-shape {
+            background-color: transparent !important;
+            width: 0px !important;
+            height: 0px !important;
+            border-left: 30px solid transparent;
+            border-right: 30px solid transparent;
+            border-bottom: 120px solid #ffaa00;
+        }
+
+        .draxon-sprite-shape {
+            border-radius: 50%;
+            width: 60px !important;
+            height: 60px !important;
+            /* Posiciona o círculo na parte inferior do container do jogador */
+            top: 60px;
+        }
+
+        #ryuzen-sprite { background-color: #00aaff; }
+        #kaela-sprite { background-color: #ffaa00; }
+        #draxon-sprite { background-color: #cc3333; }
+
+        .hitbox {
+            position: absolute;
+            background: rgba(255, 0, 0, 0.3);
+            border: 1px solid red;
+        }
+
+        #message-display {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 4rem;
+            color: #ffc700;
+            text-shadow: 4px 4px 0 #000, 0 0 20px #ff0000;
+            z-index: 100;
+            display: none;
+            text-align: center;
+            animation: message-anim 2s forwards;
+        }
+        
+        @keyframes message-anim {
+            0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+            50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+        .special-bar-container {
+            width: 100%; /* Faz a barra ocupar todo o espaço do container de info */
+            height: 15px;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid #fff;
+            border-radius: 5px;
+            margin-top: 5px;
+            padding: 2px;
+        }
+        
+        .special-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #00ffff, #00aaff);
+            border-radius: 2px;
+            transition: width 0.2s ease;
+        }
+        
+        .character-info-container {
+             width: 40%;
+        }
+
+        #p1-info { text-align: left; }
+        #p2-info { 
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        #cutscene-screen {
+             background: #000;
+             color: #eee;
+             padding: 50px;
+             font-size: 1.5rem;
+             line-height: 2.5rem;
+        }
+
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <!-- Tela Inicial -->
+        <div id="start-screen" class="screen active">
+            <h1 class="game-title">ARENA DAS SOMBRAS</h1>
+            <button id="start-button" class="start-button">INICIAR JOGO</button>
+            <p class="mt-8 text-center text-sm">Modo História: Jogador 1 (Setas, N, M) vs CPU<br>Modo Versus: Jogador 1 (Setas, N, M) vs Jogador 2 (WAD, G, H)</p>
+        </div>
+
+        <!-- Tela de Seleção de Personagem -->
+        <div id="character-select-screen" class="screen">
+            <h2 class="text-3xl mb-8">ESCOLHA SEU GUERREIRO</h2>
+            <div id="character-grid" class="character-grid">
+                <div class="character-card" data-char="ryuzen">
+                    <div class="player-indicator" style="display: none;">P1</div>
+                    <div class="character-avatar" data-char-avatar="ryuzen" style="background: #00aaff;"></div>
+                    <h3 class="text-xl">Ryuzen</h3>
+                </div>
+                <div class="character-card" data-char="kaela">
+                     <div class="player-indicator" style="display: none;">P1</div>
+                    <div class="character-avatar" data-char-avatar="kaela" style="background: #ffaa00;"></div>
+                    <h3 class="text-xl">Kaela</h3>
+                </div>
+                <div class="character-card" data-char="draxon">
+                     <div class="player-indicator" style="display: none;">P1</div>
+                    <div class="character-avatar" data-char-avatar="draxon" style="background: #cc3333;"></div>
+                    <h3 class="text-xl">Draxon</h3>
+                </div>
+            </div>
+            <p id="selection-prompt" class="mt-8 text-xl">JOGADOR 1: ESCOLHA</p>
+        </div>
+        
+        <!-- Tela de Cutscene -->
+        <div id="cutscene-screen" class="screen">
+            <p id="cutscene-text"></p>
+        </div>
+
+        <!-- Tela de Jogo -->
+        <div id="game-screen" class="screen">
+            <div id="arena-city" class="arena"></div>
+            <div id="arena-temple" class="arena" style="display: none;"></div>
+            <div id="arena-shadow" class="arena" style="display: none;"></div>
+
+            <div id="game-ui">
+                <div id="p1-info" class="character-info-container">
+                    <h3 id="p1-name">P1</h3>
+                    <div class="health-bar-container">
+                        <div id="p1-health-bar" class="health-bar"></div>
+                    </div>
+                    <div class="special-bar-container">
+                        <div id="p1-special-bar" class="special-bar"></div>
+                    </div>
+                </div>
+                <div id="timer">99</div>
+                 <div id="p2-info" class="character-info-container">
+                    <h3 id="p2-name">P2</h3>
+                    <div class="health-bar-container" id="p2-health-bar-container">
+                        <div id="p2-health-bar" class="health-bar"></div>
+                    </div>
+                     <div class="special-bar-container">
+                        <div id="p2-special-bar" class="special-bar"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="player1" class="player">
+                <div id="p1-sprite" class="sprite"></div>
+            </div>
+            <div id="player2" class="player">
+                <div id="p2-sprite" class="sprite"></div>
+            </div>
+            
+            <div id="message-display"></div>
+        </div>
+    </div>
+
+    <script>
+        // Mapeamento de elementos DOM
+        const screens = {
+            start: document.getElementById('start-screen'),
+            characterSelect: document.getElementById('character-select-screen'),
+            cutscene: document.getElementById('cutscene-screen'),
+            game: document.getElementById('game-screen'),
+        };
+        const startButton = document.getElementById('start-button');
+        const characterCards = document.querySelectorAll('.character-card');
+        const selectionPrompt = document.getElementById('selection-prompt');
+
+        const p1Element = document.getElementById('player1');
+        const p2Element = document.getElementById('player2');
+        const p1Sprite = document.getElementById('p1-sprite');
+        const p2Sprite = document.getElementById('p2-sprite');
+
+        const timerEl = document.getElementById('timer');
+        const messageDisplay = document.getElementById('message-display');
+        
+        const ui = {
+            p1: {
+                name: document.getElementById('p1-name'),
+                health: document.getElementById('p1-health-bar'),
+                special: document.getElementById('p1-special-bar'),
+            },
+            p2: {
+                name: document.getElementById('p2-name'),
+                health: document.getElementById('p2-health-bar'),
+                special: document.getElementById('p2-special-bar'),
+            }
+        };
+
+        // Constantes do Jogo
+        const GAME_WIDTH = 1000;
+        const GAME_HEIGHT = 600;
+        const GRAVITY = 1;
+        const FLOOR_LEVEL = 0;
+        
+        // Estado do Jogo
+        let gameState = 'start';
+        let gameMode = 'story'; // 'story' ou 'versus'
+        let player1, player2;
+        let timer = 99;
+        let timerInterval;
+        let keys = {};
+        let gameLoopId;
+        
+        const characterData = {
+            ryuzen: { name: 'Ryuzen', color: '#00aaff', story: 'Um espadachim em busca do guerreiro que desonrou seu clã. A Arena é sua única pista.' },
+            kaela: { name: 'Kaela', color: '#ffaa00', story: 'Para provar o valor de seu templo e alcançar a iluminação, Kaela deve vencer o torneio.' },
+            draxon: { name: 'Draxon', color: '#cc3333', story: 'Lutando pela glória e para proteger seu bairro, Draxon entra na arena para ser o rei das ruas.' }
+        };
+
+        const storyModeOpponents = {
+            ryuzen: ['kaela', 'draxon'],
+            kaela: ['draxon', 'ryuzen'],
+            draxon: ['ryuzen', 'kaela']
+        };
+        let storyStage = 0;
+
+        // Efeitos sonoros com Tone.js
+        const sounds = {
+            hit: new Tone.Synth({ oscillator: { type: "square" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1 } }).toDestination(),
+            special: new Tone.Synth({ oscillator: { type: "sawtooth" }, envelope: { attack: 0.1, decay: 0.5, sustain: 0.2, release: 0.2 } }).toDestination(),
+            jump: new Tone.Synth({ oscillator: { type: "triangle" }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.1 } }).toDestination(),
+            select: new Tone.Synth({ oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1 } }).toDestination(),
+        };
+
+        // Classe do Jogador
+        class Player {
+            constructor(id, character, controls, isCPU = false) {
+                this.id = id;
+                this.element = id === 1 ? p1Element : p2Element;
+                this.sprite = id === 1 ? p1Sprite : p2Sprite;
+                this.character = character;
+                this.controls = controls;
+                this.isCPU = isCPU;
+
+                this.width = 60;
+                this.height = 120;
+                this.x = this.id === 1 ? 200 : GAME_WIDTH - 200 - this.width;
+                this.y = FLOOR_LEVEL;
+                this.vx = 0;
+                this.vy = 0;
+
+                this.speed = 7;
+                this.jumpPower = 20;
+                this.direction = this.id === 1 ? 1 : -1;
+
+                this.health = 100;
+                this.special = 0;
+                this.isJumping = false;
+                this.isAttacking = false;
+                this.isBlocking = false;
+                this.attackCooldown = 0;
+                
+                this.sprite.style.backgroundColor = characterData[character].color;
+
+                this.sprite.className = 'sprite'; // Reseta as classes
+                if (character === 'kaela') {
+                    this.sprite.classList.add('kaela-sprite-shape');
+                } else if (character === 'draxon') {
+                    this.sprite.classList.add('draxon-sprite-shape');
+                }
+                
+                // AI properties
+                this.aiActionCooldown = 0;
+                this.aiState = 'idle';
+            }
+
+            update(opponent) {
+                if (!this.isCPU) {
+                    this.handleInput();
+                } else {
+                    this.handleAI(opponent);
+                }
+
+                this.x += this.vx;
+                this.y += this.vy;
+                
+                if (this.y > FLOOR_LEVEL) {
+                    this.vy -= GRAVITY;
+                } else {
+                    this.y = FLOOR_LEVEL;
+                    this.vy = 0;
+                    this.isJumping = false;
+                }
+
+                if (this.x < 0) this.x = 0;
+                if (this.x + this.width > GAME_WIDTH) this.x = GAME_WIDTH - this.width;
+                
+                if (this.x < opponent.x && !this.isAttacking) this.direction = 1;
+                if (this.x > opponent.x && !this.isAttacking) this.direction = -1;
+
+                if (this.attackCooldown > 0) this.attackCooldown--;
+            }
+            
+            handleAI(opponent) {
+                if (this.attackCooldown > 0) { // Can't act while attacking
+                    this.vx = 0;
+                    return;
+                }
+
+                if (this.aiActionCooldown > 0) {
+                    this.aiActionCooldown--;
+                    return;
+                }
+                
+                this.isBlocking = false; // Reset blocking state
+
+                const distance = Math.abs(this.x - opponent.x);
+                const decision = Math.random();
+                
+                if (this.health < 30 && decision > 0.6) {
+                    this.aiState = 'defensive';
+                } else if (distance > 250) {
+                    this.aiState = 'approaching';
+                } else if (distance < 90) {
+                    this.aiState = 'close_combat';
+                } else {
+                    this.aiState = 'mid_range';
+                }
+
+                this.vx = 0;
+                switch (this.aiState) {
+                    case 'approaching':
+                        this.vx = this.speed * (opponent.x > this.x ? 1 : -1);
+                        this.aiActionCooldown = 5;
+                        break;
+                    case 'mid_range':
+                        if (decision < 0.6) {
+                            this.vx = this.speed * (opponent.x > this.x ? 1 : -1) * 0.7;
+                        } else if (decision < 0.8 && this.special >= 100) {
+                            this.useSpecial(opponent);
+                        } else {
+                            this.aiActionCooldown = 30;
+                        }
+                        break;
+                    case 'close_combat':
+                        if (decision < 0.5) {
+                            this.attack('weak', opponent);
+                        } else if (decision < 0.8) {
+                            this.attack('strong', opponent);
+                        } else {
+                            this.vx = -this.speed * (opponent.x > this.x ? 1 : -1);
+                        }
+                        this.aiActionCooldown = 25 + Math.random() * 20;
+                        break;
+                    case 'defensive':
+                        this.vx = -this.speed * (opponent.x > this.x ? 1 : -1) * 0.5;
+                        if (opponent.isAttacking && distance < 150) {
+                            this.isBlocking = true;
+                        }
+                        this.aiActionCooldown = 15;
+                        break;
+                }
+
+                if (Math.random() < 0.015 && !this.isJumping) {
+                    this.jump();
+                }
+            }
+
+
+            handleInput() {
+                this.vx = 0;
+                if (keys[this.controls.left]) this.vx = -this.speed;
+                if (keys[this.controls.right]) this.vx = this.speed;
+                if (keys[this.controls.up] && !this.isJumping) this.jump();
+                
+                this.isBlocking = keys[this.controls.block];
+
+                if (keys[this.controls.attack1]) this.attack('weak', this.id === 1 ? player2 : player1);
+                if (keys[this.controls.attack2]) this.attack('strong', this.id === 1 ? player2 : player1);
+                if (keys[this.controls.special]) this.useSpecial(this.id === 1 ? player2 : player1);
+            }
+
+            jump() {
+                if (this.isJumping) return;
+                sounds.jump.triggerAttackRelease("C5", "8n");
+                this.vy = this.jumpPower;
+                this.isJumping = true;
+            }
+
+            attack(type, opponent) {
+                if (this.attackCooldown > 0 || this.isAttacking) return;
+                
+                this.isAttacking = true;
+                
+                let hitbox = {};
+                let damage = 0;
+
+                if (type === 'weak') {
+                    this.attackCooldown = 30;
+                    damage = 5;
+                    hitbox = { width: 80, height: 40, y_offset: this.height / 2 };
+                } else { // strong
+                    this.attackCooldown = 60;
+                    damage = 12;
+                    hitbox = { width: 100, height: 60, y_offset: this.height / 2 - 10 };
+                }
+                
+                hitbox.x = this.direction === 1 ? this.x + this.width : this.x - hitbox.width;
+                hitbox.y = this.y + hitbox.y_offset;
+
+                this.sprite.style.transform = `scale(1.1, 1.1) translateX(${20 * this.direction}px)`;
+
+                setTimeout(() => {
+                    if (this.checkCollision(hitbox, opponent)) {
+                        opponent.takeDamage(damage);
+                        this.addSpecial(10);
+                    }
+                    this.isAttacking = false;
+                    this.sprite.style.transform = 'none';
+                }, 150);
+            }
+            
+            useSpecial(opponent) {
+                 if (this.special < 100) return;
+                 sounds.special.triggerAttackRelease("A3", "1n");
+                 this.special = 0;
+                 this.isAttacking = true;
+                 this.attackCooldown = 90;
+                 
+                 switch(this.character) {
+                    case 'ryuzen': {
+                        const crescentVisual = document.createElement('div');
+                        crescentVisual.style.cssText = `position: absolute; width: 150px; height: 100px; border-radius: 50%; border-top: 10px solid ${characterData.ryuzen.color}; transform: ${this.direction === -1 ? 'scaleX(-1)' : ''}; bottom: ${this.y + 20}px; left: ${this.direction === 1 ? this.x + this.width : this.x - 150}px; transition: left 0.3s linear;`;
+                        screens.game.appendChild(crescentVisual);
+                        
+                        let crescentHitbox = { x: this.direction === 1 ? this.x + this.width : this.x - 150, y: this.y + 20, width: 150, height: 100 };
+
+                        setTimeout(() => {
+                            crescentVisual.style.left = `${parseInt(crescentVisual.style.left) + 300 * this.direction}px`;
+                            crescentHitbox.x += 300 * this.direction;
+                            if(this.checkCollision(crescentHitbox, opponent)) {
+                                opponent.takeDamage(25);
+                            }
+                            setTimeout(() => crescentVisual.remove(), 300);
+                        }, 50);
+                        break;
+                    }
+                     case 'kaela':
+                        this.health = Math.min(100, this.health + 20);
+                        const healEffect = document.createElement('div');
+                        healEffect.style.cssText = `position: absolute; width: ${this.width}px; height: ${this.height}px; background: radial-gradient(circle, rgba(255,255,0,0.5) 0%, rgba(255,255,0,0) 70%); bottom: ${this.y}px; left: ${this.x}px; border-radius: 50%; animation: fadeOut 1s forwards;`;
+                        screens.game.appendChild(healEffect);
+                        setTimeout(() => healEffect.remove(), 1000);
+                        break;
+                    case 'draxon': {
+                        const wave = document.createElement('div');
+                        wave.style.cssText = `position: absolute; width: 300px; height: 20px; background: ${characterData.draxon.color}; bottom: 0; left: ${this.x - 120}px; animation: shockwave 0.5s forwards;`;
+                        screens.game.appendChild(wave);
+                        const shockwaveHitbox = { x: this.x - 120, y: 0, width: 300, height: 50 };
+                        if(this.checkCollision(shockwaveHitbox, opponent) && !opponent.isJumping) {
+                           opponent.takeDamage(20);
+                        }
+                        setTimeout(() => wave.remove(), 500);
+                        break;
+                    }
+                 }
+
+                setTimeout(() => { this.isAttacking = false; }, 500);
+            }
+            
+            checkCollision(hitbox, opponent) {
+                // The opponent's body is the hurtbox
+                return hitbox.x < opponent.x + opponent.width &&
+                       hitbox.x + hitbox.width > opponent.x &&
+                       hitbox.y < opponent.y + opponent.height &&
+                       hitbox.y + hitbox.height > opponent.y;
+            }
+
+            takeDamage(amount) {
+                if (this.isBlocking) {
+                    amount /= 3;
+                    this.addSpecial(5);
+                } else {
+                    sounds.hit.triggerAttackRelease("G3", "8n");
+                }
+                
+                this.health = Math.max(0, this.health - amount);
+                
+                this.element.style.animation = 'takedamage 0.2s';
+                setTimeout(() => { this.element.style.animation = ''; }, 200);
+            }
+            
+            addSpecial(amount) {
+                this.special = Math.min(100, this.special + amount);
+            }
+            
+            draw() {
+                this.element.style.left = `${this.x}px`;
+                this.element.style.bottom = `${this.y}px`;
+                this.element.style.transform = `scaleX(${this.direction})`;
+                
+                const uiTarget = this.id === 1 ? ui.p1 : ui.p2;
+                uiTarget.name.textContent = characterData[this.character].name.toUpperCase();
+                uiTarget.health.style.width = `${this.health}%`;
+                uiTarget.special.style.width = `${this.special}%`;
+            }
+        }
+        
+        function switchScreen(screenName) {
+            Object.values(screens).forEach(s => s.classList.remove('active'));
+            screens[screenName].classList.add('active');
+        }
+
+        function showMessage(text, duration = 2000) {
+            messageDisplay.textContent = text;
+            messageDisplay.style.display = 'block';
+            setTimeout(() => {
+                messageDisplay.style.display = 'none';
+            }, duration);
+        }
+        
+        function resetRound() {
+            player1.x = 200;
+            player1.y = FLOOR_LEVEL;
+            player1.vx = player1.vy = 0;
+            player1.health = 100;
+            player1.special = 0;
+            player1.direction = 1;
+
+            player2.x = GAME_WIDTH - 200 - player2.width;
+            player2.y = FLOOR_LEVEL;
+            player2.vx = player2.vy = 0;
+            player2.health = 100;
+            player2.special = 0;
+            player2.direction = -1;
+            
+            timer = 99;
+            timerEl.textContent = timer;
+        }
+
+        function startRound() {
+            resetRound();
+            gameState = 'fighting';
+            showMessage('ROUND ' + (storyStage + 1), 1500);
+            setTimeout(() => {
+                showMessage('FIGHT!', 1000);
+                timerInterval = setInterval(() => {
+                    timer--;
+                    timerEl.textContent = timer;
+                    if (timer <= 0) {
+                        endRound('timeout');
+                    }
+                }, 1000);
+                if (!gameLoopId) {
+                    gameLoop();
+                }
+            }, 1500);
+        }
+        
+        function endRound(reason) {
+            clearInterval(timerInterval);
+            gameState = 'roundOver';
+            
+            let winner;
+            if (reason === 'timeout') {
+                winner = player1.health > player2.health ? player1 : player2;
+            } else {
+                winner = player2.health <= 0 ? player1 : player2;
+            }
+
+            showMessage(characterData[winner.character].name.toUpperCase() + ' VENCEU!', 3000);
+            
+            setTimeout(() => {
+                if(gameMode === 'story'){
+                    if (winner.id === 1) { // Player venceu
+                        storyStage++;
+                        if (storyStage >= storyModeOpponents[player1.character].length) {
+                             showCutscene(characterData[player1.character].name + ' venceu o torneio! Seu destino foi cumprido.', () => {
+                                 // Voltar ao menu
+                                 storyStage = 0;
+                                 switchScreen('start');
+                                 gameState = 'start';
+                             });
+                        } else {
+                            setupStoryFight();
+                        }
+                    } else { // Player perdeu
+                        showCutscene('Você foi derrotado. A busca termina aqui.', () => {
+                            storyStage = 0;
+                            switchScreen('start');
+                            gameState = 'start';
+                        });
+                    }
+                } else { // Modo Versus
+                    switchScreen('characterSelect');
+                    gameState = 'characterSelect';
+                    resetCharacterSelect();
+                }
+            }, 3000);
+        }
+        
+        function setupStoryFight() {
+             const p1Char = player1.character;
+             const p2Char = storyModeOpponents[p1Char][storyStage];
+             
+             player2 = new Player(2, p2Char, {}, true);
+             
+             let cutsceneText = `${characterData[p1Char].name} VS ${characterData[p2Char].name}`;
+             showCutscene(cutsceneText, () => {
+                 switchScreen('game');
+                 startRound();
+             });
+        }
+        
+        function showCutscene(text, onEnd) {
+             switchScreen('cutscene');
+             document.getElementById('cutscene-text').textContent = text;
+             setTimeout(onEnd, 4000);
+        }
+
+        function gameLoop() {
+            if (gameState === 'fighting') {
+                player1.update(player2);
+                player2.update(player1);
+            }
+            
+            player1.draw();
+            player2.draw();
+
+            if (gameState === 'fighting' && (player1.health <= 0 || player2.health <= 0)) {
+                endRound();
+            }
+
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+
+        // Inicialização e Event Listeners
+        function resetCharacterSelect() {
+            player1Char = null;
+            player2Char = null;
+            selectionPrompt.textContent = 'JOGADOR 1: ESCOLHA';
+            document.querySelectorAll('.player-indicator').forEach(ind => ind.style.display = 'none');
+            characterCards.forEach(c => c.classList.remove('selected'));
+        }
+
+        let player1Char = null;
+        let player2Char = null;
+        
+        startButton.addEventListener('click', () => {
+            switchScreen('characterSelect');
+            gameState = 'characterSelect';
+            resetCharacterSelect();
+        });
+
+        characterCards.forEach(card => {
+            card.addEventListener('click', () => {
+                if (gameState !== 'characterSelect') return;
+                sounds.select.triggerAttackRelease("C4", "8n");
+                
+                const charName = card.dataset.char;
+
+                if (!player1Char) {
+                    player1Char = charName;
+                    card.classList.add('selected');
+                    card.querySelector('.player-indicator').textContent = 'P1';
+                    card.querySelector('.player-indicator').style.display = 'block';
+                    selectionPrompt.textContent = 'JOGADOR 2: ESCOLHA (ou Pressione Ataque para CPU)';
+                } else if (!player2Char && player1Char !== charName) {
+                    gameMode = 'versus';
+                    player2Char = charName;
+                    card.classList.add('selected');
+                    card.querySelector('.player-indicator').textContent = 'P2';
+                    card.querySelector('.player-indicator').style.display = 'block';
+                    
+                    player1 = new Player(1, player1Char, { left: 'arrowleft', right: 'arrowright', up: 'arrowup', attack1: 'n', attack2: 'm', special: ',', block: '.' });
+                    player2 = new Player(2, player2Char, { left: 'a', right: 'd', up: 'w', attack1: 'g', attack2: 'h', special: 't', block: 'y' });
+
+                    showCutscene(`${characterData[player1Char].name} VS ${characterData[p2Char].name}`, () => {
+                        switchScreen('game');
+                        startRound();
+                    });
+                }
+            });
+        });
+        
+        window.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            
+            if (gameState === 'characterSelect' && player1Char && !player2Char && (e.key.toLowerCase() === 'n' || e.key.toLowerCase() === 'm')) {
+                gameMode = 'story';
+                storyStage = 0;
+                player1 = new Player(1, player1Char, { left: 'arrowleft', right: 'arrowright', up: 'arrowup', attack1: 'n', attack2: 'm', special: ',', block: '.' });
+                showCutscene(characterData[player1Char].story, () => {
+                   setupStoryFight();
+                });
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+        
+        const styleSheet = document.createElement("style");
+        styleSheet.type = "text/css";
+        styleSheet.innerText = `
+            @keyframes takedamage { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+            @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; transform: scale(1.5); } }
+            @keyframes shockwave { 0% { transform: scaleX(0); opacity: 1; } 100% { transform: scaleX(1); opacity: 0; } }
+        `;
+        document.head.appendChild(styleSheet);
+    </script>
+</body>
+</html>
+
